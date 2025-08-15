@@ -16,8 +16,8 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => AnimationProvider())],
       child: MaterialApp(
-        title: 'Pakistan Independence Day',
-        theme: AppTheme.lightTheme,
+        title: '14th August - Independence Day',
+        theme: AppTheme.darkTheme,
         debugShowCheckedModeBanner: false,
         home: const IndependenceDayScreen(),
       ),

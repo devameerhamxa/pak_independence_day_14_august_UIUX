@@ -3,45 +3,57 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-class FireworksWidget extends StatefulWidget {
+class FireworksWidget extends StatelessWidget {
   const FireworksWidget({super.key});
 
   @override
-  State<FireworksWidget> createState() => _FireworksWidgetState();
+  Widget build(BuildContext context) {
+    return const Stack(
+      children: [
+        Firework(color: Colors.green, startX: -0.8, delay: 0),
+        Firework(color: Colors.white, startX: 0.8, delay: 0.5),
+        Firework(color: Colors.green, startX: -0.5, delay: 1),
+        Firework(color: Colors.white, startX: 0.5, delay: 1.5),
+        Firework(color: Colors.green, startX: 0.2, delay: 2),
+      ],
+    );
+  }
 }
 
-class _FireworksWidgetState extends State<FireworksWidget>
-    with TickerProviderStateMixin {
+class Firework extends StatefulWidget {
+  final Color color;
+  final double startX;
+  final double delay;
+
+  const Firework({
+    required this.color,
+    this.startX = 0.0,
+    this.delay = 0.0,
+    super.key,
+  });
+
+  @override
+  State<Firework> createState() => _FireworkState();
+}
+
+class _FireworkState extends State<Firework> with TickerProviderStateMixin {
   late AnimationController _controller;
-  late List<Firework> _fireworks;
+  late Animation<double> _progress;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 2),
       vsync: this,
+      duration: const Duration(milliseconds: 2000),
     );
 
-    _generateFireworks();
-    _controller.repeat();
-  }
+    _progress = Tween(begin: 0.0, end: 1.0).animate(_controller);
 
-  void _generateFireworks() {
-    _fireworks = List.generate(8, (index) {
-      return Firework(
-        position: Offset(
-          math.Random().nextDouble() * 400,
-          math.Random().nextDouble() * 600 + 100,
-        ),
-        color: [
-          Colors.red,
-          Colors.blue,
-          Colors.yellow,
-          Colors.green,
-        ][index % 4],
-        delay: index * 0.25,
-      );
+    Future.delayed(Duration(milliseconds: (widget.delay * 1000).round()), () {
+      if (mounted) {
+        _controller.repeat();
+      }
     });
   }
 
@@ -53,63 +65,61 @@ class _FireworksWidgetState extends State<FireworksWidget>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: FireworksPainter(_fireworks, _controller.value),
-          size: MediaQuery.of(context).size,
-        );
-      },
+    return CustomPaint(
+      painter: FireworkPainter(
+        _progress,
+        color: widget.color,
+        startX: widget.startX,
+      ),
+      size: MediaQuery.of(context).size,
     );
   }
 }
 
-class Firework {
-  final Offset position;
+class FireworkPainter extends CustomPainter {
+  final Animation<double> progress;
   final Color color;
-  final double delay;
+  final double startX;
 
-  Firework({required this.position, required this.color, required this.delay});
-}
-
-class FireworksPainter extends CustomPainter {
-  final List<Firework> fireworks;
-  final double animationValue;
-
-  FireworksPainter(this.fireworks, this.animationValue);
+  FireworkPainter(this.progress, {required this.color, required this.startX})
+    : super(repaint: progress);
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final firework in fireworks) {
-      final adjustedValue = (animationValue - firework.delay).clamp(0.0, 1.0);
-      if (adjustedValue > 0) {
-        _drawFirework(canvas, firework, adjustedValue);
+    final val = progress.value;
+    final rocketPos = Offset(
+      size.width * (0.5 + startX * (1 - val)),
+      size.height * (1 - val),
+    );
+
+    if (val < 0.3) {
+      // Rocket trail
+      final paint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2;
+      canvas.drawLine(Offset(rocketPos.dx, size.height), rocketPos, paint);
+    } else {
+      // Explosion
+      final explosionProgress = (val - 0.3) / 0.7;
+      final paint = Paint()
+        ..color = color.withOpacity(1.0 - explosionProgress)
+        ..strokeWidth = 2;
+
+      const particleCount = 40;
+      final radius = explosionProgress * 100;
+
+      for (int i = 0; i < particleCount; i++) {
+        final angle = (2 * math.pi * i) / particleCount;
+        final fallOffset = Offset(0, explosionProgress * 80); // Gravity effect
+        final endPos =
+            rocketPos +
+            Offset(radius * math.cos(angle), radius * math.sin(angle)) +
+            fallOffset;
+        canvas.drawCircle(endPos, 2.0 * (1.0 - explosionProgress), paint);
       }
     }
   }
 
-  void _drawFirework(Canvas canvas, Firework firework, double progress) {
-    final paint = Paint()
-      ..color = firework.color.withOpacity(1.0 - progress)
-      ..strokeWidth = 2;
-
-    const particleCount = 12;
-    final radius = progress * 80;
-
-    for (int i = 0; i < particleCount; i++) {
-      final angle = (2 * math.pi * i) / particleCount;
-      final endX = firework.position.dx + radius * math.cos(angle);
-      final endY = firework.position.dy + radius * math.sin(angle);
-
-      canvas.drawLine(firework.position, Offset(endX, endY), paint);
-
-      // Draw particles at the end
-      canvas.drawCircle(Offset(endX, endY), 3.0 * (1.0 - progress), paint);
-    }
-  }
-
   @override
-  bool shouldRepaint(FireworksPainter oldDelegate) =>
-      oldDelegate.animationValue != animationValue;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
